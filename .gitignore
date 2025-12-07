@@ -1,0 +1,6 @@
+# Build artifacts
+test-consumer
+
+# Go sum file (generated during tests)
+# Uncommenting this would hide the test results, so we keep go.sum tracked
+# go.sum
