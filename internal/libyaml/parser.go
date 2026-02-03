@@ -1492,24 +1492,25 @@ func (parser *Parser) skipToken() {
 	parser.tokens_head++
 }
 
-// formatParserError creates a ParserError with the given problem message
+// formatParserError creates a LoadError with the given problem message
 // and mark position.
-func formatParserError(problem string, problem_mark Mark) error {
-	return ParserError{
+func formatParserError(problem string, problem_mark Mark) *LoadError {
+	return &LoadError{
+		Stage:   ParserStage,
 		Mark:    problem_mark,
 		Message: problem,
 	}
 }
 
-// formatParserErrorContext creates a ParserError with both context and
+// formatParserErrorContext creates a LoadError with both context and
 // problem information, each with their own mark positions.
-func formatParserErrorContext(context string, context_mark Mark, problem string, problem_mark Mark) error {
-	return ParserError{
-		ContextMark:    context_mark,
-		ContextMessage: context,
-
-		Mark:    problem_mark,
-		Message: problem,
+func formatParserErrorContext(context string, context_mark Mark, problem string, problem_mark Mark) *LoadError {
+	return &LoadError{
+		Stage:       ParserStage,
+		ContextMark: context_mark,
+		ContextMsg:  context,
+		Mark:        problem_mark,
+		Message:     problem,
 	}
 }
 
