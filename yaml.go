@@ -378,13 +378,29 @@ const (
 	EncodingUTF16BE = libyaml.UTF16BE_ENCODING
 )
 
+// Stage identifies the processing stage where an error occurred during YAML loading.
+type Stage = libyaml.Stage
+
+// Stage constants for YAML processing pipeline.
+const (
+	ReaderStage      = libyaml.ReaderStage      // Input reading and encoding
+	ScannerStage     = libyaml.ScannerStage     // Tokenization
+	ParserStage      = libyaml.ParserStage      // Event stream parsing
+	ComposerStage    = libyaml.ComposerStage    // Node tree construction
+	ResolverStage    = libyaml.ResolverStage    // Tag resolution
+	ConstructorStage = libyaml.ConstructorStage // Go value construction
+)
+
+// Mark represents a position in the YAML document.
+type Mark = libyaml.Mark
+
 // Error types for YAML loading and dumping
 type (
 	// LoadError represents an error encountered while decoding a YAML document.
 	//
 	// It contains details about the location in the document where the error
-	// occurred, as well as a descriptive message.
-	LoadError = libyaml.ConstructError
+	// occurred, as well as the processing stage that generated it.
+	LoadError = libyaml.LoadError
 
 	// LoadErrors is returned when one or more fields cannot be properly decoded.
 	//
@@ -576,7 +592,7 @@ func Unmarshal(in []byte, out any) (err error) {
 		// Compose and resolve to get the node
 		node := l.ComposeAndResolve()
 		if node == nil {
-			return &libyaml.LoadErrors{Errors: []*libyaml.ConstructError{{
+			return &libyaml.LoadErrors{Errors: []*libyaml.LoadError{{
 				Err: errors.New("yaml: no documents in stream"),
 			}}}
 		}

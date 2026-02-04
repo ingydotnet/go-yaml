@@ -123,6 +123,36 @@ func (m Mark) String() string {
 	return builder.String()
 }
 
+// shortString returns a compact position string in "L{line},C{col}" format.
+// Used in error messages for brevity.
+func (m Mark) shortString() string {
+	if m.Line == 0 {
+		return "<unknown position>"
+	}
+	if m.Column != 0 {
+		return fmt.Sprintf("L%d,C%d", m.Line, m.Column+1)
+	}
+	return fmt.Sprintf("L%d", m.Line)
+}
+
+// rangeString formats a range from start mark m to end mark.
+// Uses compact format for same-line ranges: "L2,C6-C7"
+// Uses full format for multi-line ranges: "L1,C8-L2,C3"
+func (m Mark) rangeString(end Mark) string {
+	start := m.shortString()
+	if m.Line == end.Line {
+		if m.Column == 0 && end.Column == 0 {
+			// Same line, no columns: just "L2"
+			return start
+		}
+		if m.Column != 0 && end.Column != 0 {
+			// Same line with columns: "L2,C6-C7"
+			return fmt.Sprintf("%s-C%d", start, end.Column+1)
+		}
+	}
+	return fmt.Sprintf("%s-%s", start, end.shortString())
+}
+
 // Node Styles
 
 // styleInt is the underlying type for style constants.
