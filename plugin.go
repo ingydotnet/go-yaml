@@ -38,6 +38,13 @@ type ParserPlugin = libyaml.ParserPlugin
 // JSONCommentsPlugin sanitizes JSON-style comments before parsing.
 type JSONCommentsPlugin = libyaml.JSONCommentsPlugin
 
+// AliasDataPlugin creates operation-local anchor policy contexts.
+type AliasDataPlugin = libyaml.AliasDataPlugin
+
+// AliasDataContext controls anchor storage and alias resolution for one
+// stream.
+type AliasDataContext = libyaml.AliasDataContext
+
 // IndentMode supplies loading and dumping defaults.
 type IndentMode = libyaml.IndentMode
 
@@ -97,6 +104,12 @@ var pluginRegistry = pluginreg.NewRegistry(
 					"yaml: go-yaml parser configuration must be empty")
 			}
 			return nativeParserPlugin{}, nil
+		},
+	},
+	PluginRegistration{
+		API: "alias-data", Name: "alias-data", Default: true,
+		Factory: func(cfg map[string]any) (any, error) {
+			return libyaml.NewAliasDataPluginFromYAML(cfg)
 		},
 	},
 )

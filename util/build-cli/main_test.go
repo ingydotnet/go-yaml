@@ -156,6 +156,33 @@ func TestConfiguredTabIndentCLI(t *testing.T) {
 	}
 }
 
+func TestConfiguredAliasDataCLI(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	goTool, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	config := filepath.Join(directory, "options.yaml")
+	binary := filepath.Join(directory, "go-yaml")
+	data := "plugin:\n  alias-data:\n    data:\n      answer: 42\n"
+	if err := os.WriteFile(config, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := buildCLI(root, config, binary, goTool, ""); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(binary, "-j")
+	cmd.Stdin = strings.NewReader("value: *answer\n")
+	out, err := cmd.CombinedOutput()
+	if err != nil || string(out) != "{\"value\":42}\n" {
+		t.Fatalf("got %q, %v", out, err)
+	}
+}
+
 func TestConfiguredCLI(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {

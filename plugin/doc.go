@@ -15,6 +15,9 @@
 // Tab indentation plugin (plugin/tabindent):
 //   - Tab-aware structural indentation for loading and dumping
 //
+// Alias data plugin (plugin/aliasdata):
+//   - External alias values and optional stream-scoped anchors
+//
 // # Usage
 //
 // Import the plugin you need and register it with WithPlugin:

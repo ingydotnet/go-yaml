@@ -13,6 +13,7 @@ The current implementations are:
 | `parser` | `reference` | `plugin/parser/reference` | no |
 | `json-comments` | `sanitizer` | `plugin/json-comments` | yes |
 | `limit` | `limit` | `plugin/limit` | yes |
+| `alias-data` | `alias-data` | `plugin/aliasdata` | yes |
 
 The optional packages are separate Go modules.
 Importing the core `go.yaml.in/yaml/v4` module does not acquire Glojure or the
@@ -26,6 +27,7 @@ directly.
 ```go
 import (
     "go.yaml.in/yaml/v4"
+    "go.yaml.in/yaml/v4/plugin/aliasdata"
     jsoncomments "go.yaml.in/yaml/v4/plugin/json-comments"
     "go.yaml.in/yaml/v4/plugin/limit"
 )
@@ -50,6 +52,19 @@ type JSONCommentsPlugin interface {
 type LimitPlugin interface {
     CheckDepth(depth int, ctx *DepthContext) error
     CheckAlias(aliasCount, constructCount int) error
+}
+
+type AliasDataPlugin interface {
+    NewAliasDataContext() (AliasDataContext, error)
+}
+
+type AliasDataContext interface {
+    BeginStream() error
+    BeginDocument() error
+    DefineAnchor(name string, node *Node) error
+    ResolveAlias(name string) (*Node, bool, error)
+    EndDocument() error
+    EndStream() error
 }
 ```
 
@@ -91,6 +106,50 @@ loader = yaml.NewLoader(data,
 | `AliasNone()` | Disable alias checking |
 | `AliasFunc(fn)` | Supply an alias policy function |
 
+## Alias data
+
+The built-in `alias-data` implementation supplies named values when an alias
+does not resolve to an anchor in the current document.
+It can also retain anchors for later documents in the same stream.
+
+```go
+aliases, err := aliasdata.New(
+    aliasdata.Data(map[string]any{
+        "defaults": map[string]any{"color": "blue"},
+    }),
+    aliasdata.EnvPattern("APP_*"),
+    aliasdata.Stream(),
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+var value any
+err = yaml.Load(input, &value, yaml.WithPlugin(aliases))
+```
+
+`Data` represents ordinary Go values as YAML nodes.
+`Nodes` accepts exact `*yaml.Node` values when tags, styles, or graph identity
+must be retained.
+`File` reads one YAML document whose root is a mapping.
+`EnvAll`, `EnvNames`, and `EnvPattern` snapshot environment strings when the
+plugin is created.
+Only `*` is a wildcard.
+
+Alias names must match `[A-Za-z0-9_-]+`.
+Relative file paths use the current working directory.
+Missing exact environment names and selected invalid names are errors.
+
+Resolution order is the current document, inline data, file data,
+environment data, and prior documents.
+Current-document anchors therefore always override configured values.
+Externally supplied mappings work with the YAML merge key.
+
+The lifecycle interface is public so applications can implement another
+anchor policy.
+Each call to load creates a new context, so plugin values may be reused safely
+by concurrent loads.
+
 ## Named configuration
 
 External packages register named implementations for `yaml.OptsYAML` and
@@ -112,6 +171,12 @@ Configuration can use mappings, strings, or booleans:
 plugin:
   parser: reference@v0.2.5
   json-comments: sanitizer@v0.1.9
+  alias-data:
+    data:
+      defaults: {color: blue}
+    file: aliases.yaml
+    env: APP_*
+    stream: true
   limit:
     depth: 50
     alias: 1000
@@ -128,6 +193,9 @@ settings.
 `disable: true` has the same effect as `false`, even when saved settings remain
 in the mapping.
 Null is invalid.
+
+For `alias-data`, an explicit `true` or empty mapping enables `stream: true`.
+Omitting `alias-data` retains standard document-scoped anchors.
 
 The host removes `name`, `version`, and `disable` before calling the
 implementation factory.

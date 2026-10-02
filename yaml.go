@@ -281,6 +281,7 @@ type DepthContext = libyaml.DepthContext
 //   - ParserPlugin: Supplies a complete YAML event stream
 //   - JSONCommentsPlugin: Sanitizes JSON-style comments before parsing
 //   - TabIndentPlugin: Enables tab-aware loading and tab-indented dumping
+//   - AliasDataPlugin: Controls anchor storage and alias resolution
 //
 // Example:
 //
@@ -313,6 +314,14 @@ func WithPlugin(plugins ...any) Option {
 						"yaml: multiple json-comments plugins")
 				}
 				o.JSONComments = comments
+				registered = true
+			}
+			if aliases, ok := p.(AliasDataPlugin); ok {
+				if o.AliasData != nil {
+					return errors.New(
+						"yaml: multiple alias-data plugins")
+				}
+				o.AliasData = aliases
 				registered = true
 			}
 			if tabs, ok := p.(TabIndentPlugin); ok {
@@ -361,8 +370,7 @@ func WithPlugin(plugins ...any) Option {
 // The "name", "version", and "disable" host fields are not passed to the
 // plugin factory. "disable": false keeps the plugin enabled.
 // Null plugin values are invalid.
-// Currently supported: "limit" with keys "depth" and "alias" (int
-// or null to disable).
+// The built-in implementations include "limit" and "alias-data".
 //
 // Only fields specified in the YAML will override other options when
 // combined. Unspecified fields won't affect other options.

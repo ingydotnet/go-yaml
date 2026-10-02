@@ -19,8 +19,9 @@ type Composer struct {
 	source       *EventReader
 	event        Event
 	doc          *Node
-	anchors      map[string]*Node
+	aliasData    AliasDataContext
 	doneInit     bool
+	streamEnded  bool
 	Textless     bool
 	streamNodes  bool     // enable stream node emission
 	returnStream bool     // flag to return stream node next
@@ -104,6 +105,7 @@ func (c *Composer) Compose() *Node {
 	if c.streamNodes {
 		// Check for stream end first
 		if c.peek() == STREAM_END_EVENT {
+			c.endAliasDataStream()
 			// If we haven't returned the final stream node yet,
 			// return it now
 			if !c.atStreamEnd {
@@ -139,6 +141,7 @@ func (c *Composer) Compose() *Node {
 	case STREAM_END_EVENT:
 		// Happens when attempting to decode an empty buffer (when not
 		// using stream nodes).
+		c.endAliasDataStream()
 		return nil
 	case TAIL_COMMENT_EVENT:
 		panic("internal error: unexpected tail comment event (please report)")
@@ -177,8 +180,9 @@ func (c *Composer) node(kind Kind, tag, value string) *Node {
 // document composes a document node by parsing its content between
 // DOCUMENT_START and DOCUMENT_END events.
 func (c *Composer) document() *Node {
-	// Anchors are scoped to a single document.
-	c.resetAnchors()
+	if err := c.aliasData.BeginDocument(); err != nil {
+		c.failAliasData(err)
+	}
 
 	n := c.node(DocumentNode, "", "")
 	c.doc = n
@@ -188,6 +192,9 @@ func (c *Composer) document() *Node {
 		n.FootComment = string(c.event.FootComment)
 	}
 	c.expect(DOCUMENT_END_EVENT)
+	if err := c.aliasData.EndDocument(); err != nil {
+		c.failAliasData(err)
+	}
 
 	// If stream nodes enabled, prepare to return a stream node next
 	if c.streamNodes {
@@ -218,8 +225,13 @@ func (c *Composer) createStreamNode() *Node {
 // alias composes an alias node by resolving the referenced anchor.
 func (c *Composer) alias() *Node {
 	n := c.node(AliasNode, "", string(c.event.Anchor))
-	n.Alias = c.anchors[n.Value]
-	if n.Alias == nil {
+	var found bool
+	var err error
+	n.Alias, found, err = c.aliasData.ResolveAlias(n.Value)
+	if err != nil {
+		c.failAliasData(err)
+	}
+	if !found {
 		msg := fmt.Sprintf("unknown anchor '%s' referenced", n.Value)
 		Fail(formatComposerError(msg, Mark{
 			Line:   n.Line,
@@ -319,7 +331,17 @@ func (c *Composer) init() {
 	if c.doneInit {
 		return
 	}
-	c.resetAnchors()
+	c.aliasData = newDefaultAliasDataContext()
+	if c.opts != nil && c.opts.AliasData != nil {
+		var err error
+		c.aliasData, err = c.opts.AliasData.NewAliasDataContext()
+		if err != nil {
+			c.failAliasData(err)
+		}
+	}
+	if err := c.aliasData.BeginStream(); err != nil {
+		c.failAliasData(err)
+	}
 	// Peek to get the encoding from STREAM_START_EVENT
 	if c.peek() == STREAM_START_EVENT {
 		c.encoding = c.event.GetEncoding()
@@ -333,13 +355,10 @@ func (c *Composer) init() {
 	}
 }
 
-func (c *Composer) resetAnchors() {
-	c.anchors = make(map[string]*Node)
-}
-
 // Destroy cleans up the composer by deleting any pending event and the
 // underlying parser.
 func (c *Composer) Destroy() {
+	c.endAliasDataStream()
 	if c.event.Type != NO_EVENT {
 		c.event.Delete()
 	}
@@ -402,8 +421,28 @@ func (c *Composer) fail(err error) {
 func (c *Composer) anchor(n *Node, anchor []byte) {
 	if anchor != nil {
 		n.Anchor = string(anchor)
-		c.anchors[n.Anchor] = n
+		if err := c.aliasData.DefineAnchor(n.Anchor, n); err != nil {
+			c.failAliasData(err)
+		}
 	}
+}
+
+func (c *Composer) endAliasDataStream() {
+	if c.aliasData == nil || c.streamEnded {
+		return
+	}
+	c.streamEnded = true
+	if err := c.aliasData.EndStream(); err != nil {
+		c.failAliasData(err)
+	}
+}
+
+func (c *Composer) failAliasData(err error) {
+	mark := Mark{}
+	if c.event.Type != NO_EVENT {
+		mark = c.event.StartMark
+	}
+	Fail(formatComposerError(err.Error(), mark))
 }
 
 // parseChild composes the next node and adds it as a child to the parent.

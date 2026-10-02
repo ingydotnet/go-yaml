@@ -42,6 +42,9 @@ type Options struct {
 	// IndentConfig enables tab-aware structural indentation.
 	IndentConfig *IndentConfig
 
+	// AliasData controls anchor storage and alias resolution.
+	AliasData AliasDataPlugin
+
 	// Safety limit checks (set by ApplyOptions or WithPlugin(limit.New(...)))
 	DepthCheck func(depth int, ctx *DepthContext) error
 	AliasCheck func(aliasCount, constructCount int) error

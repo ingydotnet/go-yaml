@@ -188,6 +188,14 @@ func inspectConfig(data []byte) (buildConfig, error) {
 						"no CLI build provider for plugin %q implementation %q",
 						api, name)
 				}
+			case "alias-data":
+				switch name {
+				case "", "alias-data":
+				default:
+					return selection, fmt.Errorf(
+						"no CLI build provider for plugin %q implementation %q",
+						api, name)
+				}
 			default:
 				return selection, fmt.Errorf(
 					"no CLI build provider for plugin %q", api)
