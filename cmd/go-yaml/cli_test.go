@@ -154,6 +154,96 @@ func TestDefaultOutputIsCompactJSON(t *testing.T) {
 	})
 }
 
+func TestDocumentSelectionAppliesToEveryMode(t *testing.T) {
+	input := "--- first\n--- second\n"
+	modes := []string{
+		"", "-j", "-J", "-y", "-Y", "-t", "-T",
+		"-e", "-E", "-n", "-N", "-l",
+	}
+	for _, mode := range modes {
+		name := mode
+		if name == "" {
+			name = "default"
+		}
+		t.Run(name, func(t *testing.T) {
+			all := runSelectionCommand(t, input, mode)
+			if !strings.Contains(all, "first") ||
+				!strings.Contains(all, "second") {
+				t.Fatalf("default output did not contain both documents:\n%s", all)
+			}
+
+			first := runSelectionCommand(t, input, mode, "-A")
+			if !strings.Contains(first, "first") ||
+				strings.Contains(first, "second") {
+				t.Fatalf("first output selected the wrong document:\n%s", first)
+			}
+
+			last := runSelectionCommand(t, input, mode, "--last")
+			if strings.Contains(last, "first") ||
+				!strings.Contains(last, "second") {
+				t.Fatalf("last output selected the wrong document:\n%s", last)
+			}
+		})
+	}
+}
+
+func TestDocumentSelectionConflict(t *testing.T) {
+	cmd := exec.Command(testBinary, "--first", "--last")
+	cmd.Stdin = strings.NewReader("one\n")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected conflicting selectors to fail")
+	}
+	if !strings.Contains(string(output), "cannot be used together") {
+		t.Fatalf("unexpected error: %s", output)
+	}
+}
+
+func TestDocumentSelectionAppliesToStructuredInput(t *testing.T) {
+	input := "--- first\n--- second\n"
+	tokens := runSelectionCommand(t, input, "-t")
+	events := runSelectionCommand(t, tokens, "-Z", "-e")
+	assertLastDocument(t, events)
+
+	events = runSelectionCommand(t, input, "-e")
+	nodes := runSelectionCommand(t, events, "-Z", "-N")
+	assertLastDocument(t, nodes)
+
+	nodes = runSelectionCommand(t, input, "-N")
+	output := runSelectionCommand(t, nodes, "-Z", "-Y")
+	assertLastDocument(t, output)
+}
+
+func assertLastDocument(t *testing.T, output string) {
+	t.Helper()
+	if strings.Contains(output, "first") ||
+		!strings.Contains(output, "second") {
+		t.Fatalf("last output selected the wrong document:\n%s", output)
+	}
+}
+
+func TestAllDocumentsOptionIsRetired(t *testing.T) {
+	initOptionRegistry()
+	if _, err := parseOneOption("all-documents"); err == nil {
+		t.Fatal("expected all-documents option to be rejected")
+	}
+}
+
+func runSelectionCommand(t *testing.T, input string, args ...string) string {
+	t.Helper()
+	var commandArgs []string
+	for _, arg := range args {
+		commandArgs = append(commandArgs, strings.Fields(arg)...)
+	}
+	cmd := exec.Command(testBinary, commandArgs...)
+	cmd.Stdin = strings.NewReader(input)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("command failed: %v\n%s", err, output)
+	}
+	return string(output)
+}
+
 func runTestFile(t *testing.T, testFile string) {
 	t.Helper()
 	// Read and parse the test file

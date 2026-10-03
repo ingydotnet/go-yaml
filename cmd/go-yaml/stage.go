@@ -449,7 +449,7 @@ func relinkAliases(nodes []*yaml.Node) error {
 }
 
 func processStructuredInput(input *structuredInput, target stageKind, profuse,
-	compact, preserve bool, opts []yaml.Option,
+	compact, preserve bool, selection documentSelection, opts []yaml.Option,
 ) error {
 	if targetRank(target) < targetRank(input.stage) {
 		return fmt.Errorf("cannot convert %s input backward to %s output", input.stage, target)
@@ -457,6 +457,7 @@ func processStructuredInput(input *structuredInput, target stageKind, profuse,
 
 	switch input.stage {
 	case stageToken:
+		input.tokens = selectTokenInfos(input.tokens, selection)
 		tokens, comments, err := tokenContractToLibyaml(input.tokens)
 		if err != nil {
 			return err
@@ -470,6 +471,7 @@ func processStructuredInput(input *structuredInput, target stageKind, profuse,
 		}
 		return processEventStream(events, target, profuse, compact, preserve, opts)
 	case stageEvent:
+		input.events = selectEventInfos(input.events, selection)
 		events, err := eventContractToLibyaml(input.events)
 		if err != nil {
 			return err
@@ -479,6 +481,7 @@ func processStructuredInput(input *structuredInput, target stageKind, profuse,
 		}
 		return processEventStream(events, target, profuse, compact, preserve, opts)
 	case stageNode:
+		input.nodes = selectNodes(input.nodes, selection)
 		if target == stageNode {
 			return writeNodeContract(input.nodes, profuse)
 		}

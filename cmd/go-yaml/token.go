@@ -54,12 +54,12 @@ type TokenInfo struct {
 // ProcessTokens reads YAML from reader and outputs token information using the internal scanner
 func ProcessTokens(
 	reader io.Reader, profuse, compact, unmarshal bool,
-	opts ...yaml.Option,
+	selection documentSelection, opts ...yaml.Option,
 ) error {
 	if unmarshal {
-		return processTokensUnmarshal(reader, profuse, compact)
+		return processTokensUnmarshal(reader, profuse, compact, selection)
 	}
-	return processTokensWithParser(reader, profuse, compact, opts...)
+	return processTokensWithParser(reader, profuse, compact, selection, opts...)
 }
 
 // processTokensDecode uses Loader.Load for YAML processing
@@ -178,7 +178,8 @@ func processTokensDecode(profuse, compact bool) error {
 
 // processTokensWithParser uses the internal parser for token processing
 func processTokensWithParser(
-	reader io.Reader, profuse, compact bool, opts ...yaml.Option,
+	reader io.Reader, profuse, compact bool, selection documentSelection,
+	opts ...yaml.Option,
 ) error {
 	p, err := NewParser(reader, opts...)
 	if err != nil {
@@ -186,6 +187,7 @@ func processTokensWithParser(
 	}
 	defer p.Close()
 
+	var infos []*TokenInfo
 	for {
 		token, err := p.Next()
 		if err != nil {
@@ -195,89 +197,17 @@ func processTokensWithParser(
 			break
 		}
 
-		info := formatTokenInfo(token, profuse)
-
-		if compact {
-			// For compact mode, output each token as a flow style mapping in a sequence
-			compactNode := &yaml.Node{
-				Kind:  yaml.MappingNode,
-				Style: yaml.FlowStyle,
-			}
-
-			// Add the Token field
-			compactNode.Content = append(compactNode.Content,
-				&yaml.Node{Kind: yaml.ScalarNode, Value: "token"},
-				&yaml.Node{Kind: yaml.ScalarNode, Value: info.Token})
-
-			// Add other fields if they exist
-			appendTokenContractFields(compactNode, info)
-			if info.Value != "" {
-				compactNode.Content = append(compactNode.Content,
-					&yaml.Node{Kind: yaml.ScalarNode, Value: "value"},
-					&yaml.Node{Kind: yaml.ScalarNode, Value: info.Value})
-			}
-			if info.Style != "" {
-				compactNode.Content = append(compactNode.Content,
-					&yaml.Node{Kind: yaml.ScalarNode, Value: "style"},
-					&yaml.Node{Kind: yaml.ScalarNode, Value: info.Style})
-			}
-			if info.Head != "" {
-				compactNode.Content = append(compactNode.Content,
-					&yaml.Node{Kind: yaml.ScalarNode, Value: "head"},
-					&yaml.Node{Kind: yaml.ScalarNode, Value: info.Head})
-			}
-			if info.Line != "" {
-				compactNode.Content = append(compactNode.Content,
-					&yaml.Node{Kind: yaml.ScalarNode, Value: "line"},
-					&yaml.Node{Kind: yaml.ScalarNode, Value: info.Line})
-			}
-			if info.Foot != "" {
-				compactNode.Content = append(compactNode.Content,
-					&yaml.Node{Kind: yaml.ScalarNode, Value: "foot"},
-					&yaml.Node{Kind: yaml.ScalarNode, Value: info.Foot})
-			}
-			if info.Pos != "" {
-				compactNode.Content = append(compactNode.Content,
-					&yaml.Node{Kind: yaml.ScalarNode, Value: "pos"},
-					&yaml.Node{Kind: yaml.ScalarNode, Value: info.Pos})
-			}
-
-			var buf bytes.Buffer
-			dumper, err := yaml.NewDumper(&buf)
-			if err != nil {
-				return fmt.Errorf("failed to create dumper: %w", err)
-			}
-			if err := dumper.Dump([]*yaml.Node{compactNode}); err != nil {
-				dumper.Close()
-				return fmt.Errorf("failed to dump compact token info: %w", err)
-			}
-			if err := dumper.Close(); err != nil {
-				return fmt.Errorf("failed to close dumper: %w", err)
-			}
-			fmt.Print(buf.String())
-		} else {
-			// For non-compact mode, output each token as a separate mapping
-			var buf bytes.Buffer
-			dumper, err := yaml.NewDumper(&buf)
-			if err != nil {
-				return fmt.Errorf("failed to create dumper: %w", err)
-			}
-			if err := dumper.Dump([]*TokenInfo{info}); err != nil {
-				dumper.Close()
-				return fmt.Errorf("failed to dump token info: %w", err)
-			}
-			if err := dumper.Close(); err != nil {
-				return fmt.Errorf("failed to close dumper: %w", err)
-			}
-			fmt.Print(buf.String())
-		}
+		infos = append(infos, formatTokenInfo(token, profuse))
 	}
 
-	return nil
+	return writeTokenContract(selectTokenInfos(infos, selection),
+		profuse, compact)
 }
 
 // processTokensUnmarshal uses [yaml.Unmarshal] for YAML processing
-func processTokensUnmarshal(reader io.Reader, profuse, compact bool) error {
+func processTokensUnmarshal(reader io.Reader, profuse, compact bool,
+	selection documentSelection,
+) error {
 	// Read all input from reader
 	input, err := io.ReadAll(reader)
 	if err != nil {
@@ -285,15 +215,16 @@ func processTokensUnmarshal(reader io.Reader, profuse, compact bool) error {
 	}
 
 	// Split input into documents
-	documents := bytes.Split(input, []byte("---"))
+	var documents [][]byte
+	for _, document := range bytes.Split(input, []byte("---")) {
+		if len(bytes.TrimSpace(document)) > 0 {
+			documents = append(documents, document)
+		}
+	}
+	documents = selectDocuments(documents, selection)
 	firstDoc := true
 
 	for _, doc := range documents {
-		// Skip empty documents
-		if len(bytes.TrimSpace(doc)) == 0 {
-			continue
-		}
-
 		// Add document separator for all documents except the first
 		if !firstDoc {
 			fmt.Println("---")

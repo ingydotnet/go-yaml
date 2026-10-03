@@ -74,15 +74,19 @@ type EventInfo struct {
 }
 
 // ProcessEvents reads YAML from reader and outputs event information
-func ProcessEvents(reader io.Reader, profuse, compact, unmarshal bool, opts ...yaml.Option) error {
+func ProcessEvents(reader io.Reader, profuse, compact, unmarshal bool,
+	selection documentSelection, opts ...yaml.Option,
+) error {
 	if unmarshal {
-		return processEventsUnmarshal(reader, profuse, compact)
+		return processEventsUnmarshal(reader, profuse, compact, selection)
 	}
-	return processEventsDecode(reader, profuse, compact, opts...)
+	return processEventsDecode(reader, profuse, compact, selection, opts...)
 }
 
 // processEventsDecode uses libyaml.Parser.Parse for YAML processing
-func processEventsDecode(reader io.Reader, profuse, compact bool, opts ...yaml.Option) error {
+func processEventsDecode(reader io.Reader, profuse, compact bool,
+	selection documentSelection, opts ...yaml.Option,
+) error {
 	// Read all input from reader
 	input, err := io.ReadAll(reader)
 	if err != nil {
@@ -94,6 +98,7 @@ func processEventsDecode(reader io.Reader, profuse, compact bool, opts ...yaml.O
 	if err != nil {
 		return err
 	}
+	events = selectEvents(events, selection)
 
 	if compact {
 		// For compact mode, output each event as a flow style mapping in a sequence
@@ -208,7 +213,9 @@ func processEventsDecode(reader io.Reader, profuse, compact bool, opts ...yaml.O
 }
 
 // processEventsUnmarshal uses libyaml.Parser.Parse for YAML processing
-func processEventsUnmarshal(reader io.Reader, profuse, compact bool) error {
+func processEventsUnmarshal(reader io.Reader, profuse, compact bool,
+	selection documentSelection,
+) error {
 	// Read all input from reader
 	input, err := io.ReadAll(reader)
 	if err != nil {
@@ -220,6 +227,7 @@ func processEventsUnmarshal(reader io.Reader, profuse, compact bool) error {
 	if err != nil {
 		return err
 	}
+	events = selectEvents(events, selection)
 
 	if compact {
 		// For compact mode, output each event as a flow style mapping in a sequence

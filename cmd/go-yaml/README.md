@@ -3,6 +3,7 @@
 The `go-yaml` binary is a YAML processing and inspection tool that provides
 various modes for analyzing and transforming YAML data.
 Without an output-mode option, it converts YAML input to compact JSON.
+All documents are processed by default.
 
 Below is a summary of its capabilities:
 
@@ -32,6 +33,13 @@ See the [LICENSE](LICENSE) file for more details.
 ### Node Representation
 - `-n` / `--node`: Outputs a compact representation of the YAML node structure.
 - `-N` / `--NODE`: Outputs nodes with tags and styles.
+
+### Document Selection
+- `-A` / `--first`: Processes only the first YAML document.
+- `-Z` / `--last`: Processes only the last YAML document.
+
+Without either selection option, every document is processed in every output
+mode.
 
 ### Chaining
 

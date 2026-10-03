@@ -177,14 +177,6 @@ func initOptionRegistry() {
 			val := value == "true"
 			return []yaml.Option{yaml.WithSingleDocument(val)}, nil
 		}},
-		"all-documents": {typ: "bool", handler: func(value string) ([]yaml.Option, error) {
-			val := value == "true"
-			return []yaml.Option{yaml.WithAllDocuments(val)}, nil
-		}},
-		"all": {typ: "bool", handler: func(value string) ([]yaml.Option, error) {
-			val := value == "true"
-			return []yaml.Option{yaml.WithAllDocuments(val)}, nil
-		}},
 		"stream-nodes": {typ: "bool", handler: func(value string) ([]yaml.Option, error) {
 			val := value == "true"
 			return []yaml.Option{yaml.WithStreamNodes(val)}, nil
@@ -295,7 +287,6 @@ Loading options:
   unique-keys           Duplicate key detection (short: unique)
   known-fields          Strict field checking
   single-document       Only process first document (short: single)
-  all-documents         Multi-document mode (short: all)
   stream-nodes          Enable stream boundary nodes (short: stream)
 
 Boolean options: use 'name' for true, 'no-name' for false
@@ -418,6 +409,8 @@ func main() {
 	// Shared flags
 	longMode := flag.Bool("l", false, "Long (block) formatted output")
 	fromStage := flag.String("f", "", "Force input stage: t, e, n, or y")
+	firstDocument := flag.Bool("A", false, "Select the first YAML document")
+	lastDocument := flag.Bool("Z", false, "Select the last YAML document")
 
 	// Config file flag
 	configFile := flag.String("C", "", "Load options from YAML config file (replaces embedded defaults)")
@@ -451,6 +444,8 @@ func main() {
 	flag.BoolVar(nodeProfuseMode, "NODE", false, "Node with tag and style for all scalars")
 	flag.BoolVar(longMode, "long", false, "Long (block) formatted output")
 	flag.StringVar(fromStage, "from", "", "Force input stage: token, event, node, or yaml")
+	flag.BoolVar(firstDocument, "first", false, "Select the first YAML document")
+	flag.BoolVar(lastDocument, "last", false, "Select the last YAML document")
 	flag.StringVar(configFile, "config", "", "Load options from YAML config file (replaces embedded defaults)")
 
 	// API selection flags (long form only)
@@ -478,6 +473,17 @@ func main() {
 	}
 
 	flag.Parse()
+	if *firstDocument && *lastDocument {
+		fmt.Fprintln(os.Stderr,
+			"Error: --first and --last cannot be used together")
+		os.Exit(1)
+	}
+	selection := documentsAll
+	if *firstDocument {
+		selection = documentFirst
+	} else if *lastDocument {
+		selection = documentLast
+	}
 	compact := !*longMode // compact is default, long mode negates it
 	outputModeSelected := func() bool {
 		return *nodeMode || *nodeProfuseMode ||
@@ -507,6 +513,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		printAvailableOptions()
 		os.Exit(1)
+	}
+	if selection != documentsAll {
+		opts = append(opts, yaml.WithSingleDocument(false))
 	}
 
 	configured, optionErr := libyaml.ApplyOptions(opts...)
@@ -594,7 +603,7 @@ func main() {
 			log.Fatal("No output stage specified")
 		}
 		if err := processStructuredInput(structured, target, profuse,
-			compact, *yamlPreserveMode, opts); err != nil {
+			compact, *yamlPreserveMode, selection, opts); err != nil {
 			log.Fatal("Failed to process structured input:", err)
 		}
 		return
@@ -611,44 +620,50 @@ func main() {
 	// Process YAML input
 	if *eventMode {
 		// Use event formatting mode (compact by default)
-		if err := ProcessEvents(input, false, compact, unmarshalMode, opts...); err != nil {
+		if err := ProcessEvents(input, false, compact, unmarshalMode,
+			selection, opts...); err != nil {
 			log.Fatal("Failed to process events:", err)
 		}
 	} else if *eventProfuseMode {
 		// Use event formatting mode with profuse output
-		if err := ProcessEvents(input, true, compact, unmarshalMode, opts...); err != nil {
+		if err := ProcessEvents(input, true, compact, unmarshalMode,
+			selection, opts...); err != nil {
 			log.Fatal("Failed to process events:", err)
 		}
 	} else if *tokenMode {
 		// Use token formatting mode (compact by default)
 		if err := ProcessTokens(
-			input, false, compact, unmarshalMode, opts...); err != nil {
+			input, false, compact, unmarshalMode, selection, opts...); err != nil {
 			log.Fatal("Failed to process tokens:", err)
 		}
 	} else if *tokenProfuseMode {
 		// Use token formatting mode with profuse output
 		if err := ProcessTokens(
-			input, true, compact, unmarshalMode, opts...); err != nil {
+			input, true, compact, unmarshalMode, selection, opts...); err != nil {
 			log.Fatal("Failed to process tokens:", err)
 		}
 	} else if *jsonMode {
 		// Use JSON formatting mode (compact by default)
-		if err := ProcessJSON(input, false, unmarshalMode, decodeMode, opts...); err != nil {
+		if err := ProcessJSON(input, false, unmarshalMode, decodeMode,
+			selection, opts...); err != nil {
 			log.Fatal("Failed to process JSON:", err)
 		}
 	} else if *jsonPrettyMode {
 		// Use pretty JSON formatting mode
-		if err := ProcessJSON(input, true, unmarshalMode, decodeMode, opts...); err != nil {
+		if err := ProcessJSON(input, true, unmarshalMode, decodeMode,
+			selection, opts...); err != nil {
 			log.Fatal("Failed to process JSON:", err)
 		}
 	} else if *yamlMode {
 		// Use YAML formatting mode (clean by default)
-		if err := ProcessYAML(input, false, unmarshalMode, decodeMode, marshalMode, encodeMode, opts); err != nil {
+		if err := ProcessYAML(input, false, unmarshalMode, decodeMode,
+			marshalMode, encodeMode, selection, opts); err != nil {
 			log.Fatal("Failed to process YAML:", err)
 		}
 	} else if *yamlPreserveMode {
 		// Use YAML formatting mode with preserve
-		if err := ProcessYAML(input, true, unmarshalMode, decodeMode, marshalMode, encodeMode, opts); err != nil {
+		if err := ProcessYAML(input, true, unmarshalMode, decodeMode,
+			marshalMode, encodeMode, selection, opts); err != nil {
 			log.Fatal("Failed to process YAML:", err)
 		}
 	} else {
@@ -656,7 +671,7 @@ func main() {
 		profuse := *nodeProfuseMode
 		if unmarshalMode {
 			// Use Unmarshal mode
-			if err := ProcessNodeUnmarshal(input, profuse); err != nil {
+			if err := ProcessNodeUnmarshal(input, profuse, selection); err != nil {
 				log.Fatal("Failed to process YAML node:", err)
 			}
 		} else {
@@ -667,7 +682,7 @@ func main() {
 			}
 
 			// Collect all documents
-			var docs []any
+			var nodes []*yaml.Node
 
 			for {
 				var node yaml.Node
@@ -678,12 +693,16 @@ func main() {
 				if err != nil {
 					log.Fatal("Failed to load YAML node:", err)
 				}
+				nodes = append(nodes, &node)
+			}
 
+			var docs []any
+			for _, node := range selectNodes(nodes, selection) {
 				var info any
 				if profuse {
-					info = FormatNode(node, profuse)
+					info = FormatNode(*node, profuse)
 				} else {
-					info = FormatNodeCompact(node)
+					info = FormatNodeCompact(*node)
 				}
 				docs = append(docs, info)
 			}
@@ -714,7 +733,9 @@ func main() {
 }
 
 // ProcessNodeUnmarshal reads YAML from reader using Unmarshal and outputs node structure
-func ProcessNodeUnmarshal(reader io.Reader, profuse bool) error {
+func ProcessNodeUnmarshal(reader io.Reader, profuse bool,
+	selection documentSelection,
+) error {
 	// Read all input from reader
 	input, err := io.ReadAll(reader)
 	if err != nil {
@@ -753,6 +774,8 @@ func ProcessNodeUnmarshal(reader io.Reader, profuse bool) error {
 		}
 		docs = append(docs, info)
 	}
+
+	docs = selectDocuments(docs, selection)
 
 	// Output as sequence if multiple documents, otherwise output single document
 	var output any
@@ -802,6 +825,8 @@ Usage:
 Input Options:
   -f, --from STAGE  Force input stage when auto-detection is ambiguous
                     Values: token (t), event (e), node (n), yaml (y)
+  -A, --first       Select the first YAML document
+  -Z, --last        Select the last YAML document
 
 Output Mode Options:
   -y, --yaml       YAML encoding output
