@@ -63,6 +63,88 @@ func (s *stringSlice) Set(value string) error {
 	return nil
 }
 
+type booleanFlag interface {
+	IsBoolFlag() bool
+}
+
+func flagNeedsValue(flagInfo *flag.Flag) bool {
+	boolean, ok := flagInfo.Value.(booleanFlag)
+	return !ok || !boolean.IsBoolFlag()
+}
+
+func expandShortOptions(
+	flagSet *flag.FlagSet, arg string, next string, hasNext bool,
+) ([]string, bool, bool) {
+	expanded := make([]string, 0, len(arg))
+	for index := 0; index < len(arg); index++ {
+		name := arg[index : index+1]
+		flagInfo := flagSet.Lookup(name)
+		if flagInfo == nil {
+			return nil, false, false
+		}
+		expanded = append(expanded, "-"+name)
+		if !flagNeedsValue(flagInfo) {
+			continue
+		}
+
+		value := strings.TrimPrefix(arg[index+1:], "=")
+		if value != "" {
+			return append(expanded, value), false, true
+		}
+		if hasNext {
+			return append(expanded, next), true, true
+		}
+		return expanded, false, true
+	}
+	return expanded, false, true
+}
+
+func normalizeFlagArgs(flagSet *flag.FlagSet, args []string) []string {
+	normalized := make([]string, 0, len(args))
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "--" || arg == "-" || !strings.HasPrefix(arg, "-") {
+			return append(normalized, args[index:]...)
+		}
+
+		nameValue := strings.TrimPrefix(arg, "-")
+		if strings.HasPrefix(arg, "--") {
+			nameValue = strings.TrimPrefix(nameValue, "-")
+		}
+		name, _, hasEquals := strings.Cut(nameValue, "=")
+		if flagInfo := flagSet.Lookup(name); flagInfo != nil {
+			normalized = append(normalized, arg)
+			if !hasEquals && flagNeedsValue(flagInfo) && index+1 < len(args) {
+				index++
+				normalized = append(normalized, args[index])
+			}
+			continue
+		}
+
+		if strings.HasPrefix(arg, "--") || len(nameValue) < 2 {
+			normalized = append(normalized, arg)
+			continue
+		}
+
+		next := ""
+		hasNext := index+1 < len(args)
+		if hasNext {
+			next = args[index+1]
+		}
+		expanded, consumedNext, ok := expandShortOptions(
+			flagSet, nameValue, next, hasNext)
+		if !ok {
+			normalized = append(normalized, arg)
+			continue
+		}
+		normalized = append(normalized, expanded...)
+		if consumedNext {
+			index++
+		}
+	}
+	return normalized
+}
+
 // optionSpec defines metadata for an option
 type optionSpec struct {
 	typ     string // "bool", "int", "string", "multi"
@@ -472,7 +554,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.Parse()
+	flag.CommandLine.Parse(normalizeFlagArgs(flag.CommandLine, os.Args[1:]))
 	if *firstDocument && *lastDocument {
 		fmt.Fprintln(os.Stderr,
 			"Error: --first and --last cannot be used together")

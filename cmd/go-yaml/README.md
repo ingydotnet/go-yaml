@@ -95,6 +95,14 @@ It outputs compact JSON when no output-mode flag is specified.
 It validates flag combinations and provides error messages for incompatible
 options.
 
+Short options can be combined.
+A value-taking short option consumes the rest of the same argument:
+
+```bash
+go-yaml -Zy stream.yaml
+go-yaml -Zyov4 stream.yaml
+```
+
 ## Plugin builds
 
 The ordinary command contains the built-in `go-yaml` parser and limit plugin.

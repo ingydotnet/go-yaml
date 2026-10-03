@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -152,6 +153,79 @@ func TestDefaultOutputIsCompactJSON(t *testing.T) {
 			t.Fatalf("got %q, want %q", output, want)
 		}
 	})
+}
+
+func TestNormalizeFlagArgs(t *testing.T) {
+	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
+	flagSet.Bool("Z", false, "")
+	flagSet.Bool("y", false, "")
+	flagSet.String("f", "", "")
+	flagSet.String("C", "", "")
+	flagSet.String("config", "", "")
+	var options stringSlice
+	flagSet.Var(&options, "o", "")
+
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"cluster", []string{"-Zy"}, []string{"-Z", "-y"}},
+		{
+			"attached",
+			[]string{"-Zyov4"},
+			[]string{"-Z", "-y", "-o", "v4"},
+		},
+		{
+			"separate value",
+			[]string{"-Zyo", "v4"},
+			[]string{"-Z", "-y", "-o", "v4"},
+		},
+		{"from stage", []string{"-fy"}, []string{"-f", "y"}},
+		{
+			"config file",
+			[]string{"-Cfile.yaml"},
+			[]string{"-C", "file.yaml"},
+		},
+		{
+			"long value",
+			[]string{"--config=file.yaml"},
+			[]string{"--config=file.yaml"},
+		},
+		{
+			"single dash long",
+			[]string{"-config", "file.yaml"},
+			[]string{"-config", "file.yaml"},
+		},
+		{"unknown", []string{"-Zq"}, []string{"-Zq"}},
+		{"delimiter", []string{"--", "-Zy"}, []string{"--", "-Zy"}},
+		{
+			"positional",
+			[]string{"file.yaml", "-Zy"},
+			[]string{"file.yaml", "-Zy"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := normalizeFlagArgs(flagSet, test.args)
+			if strings.Join(got, "\x00") != strings.Join(test.want, "\x00") {
+				t.Fatalf("got %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestClusteredShortOptions(t *testing.T) {
+	cmd := exec.Command(testBinary, "-Zy")
+	cmd.Stdin = strings.NewReader("---\na: b\n---\nc: d\n")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("command failed: %v\n%s", err, output)
+	}
+	if string(output) != "c: d\n" {
+		t.Fatalf("got %q, want %q", output, "c: d\\n")
+	}
 }
 
 func TestDocumentSelectionAppliesToEveryMode(t *testing.T) {
