@@ -479,6 +479,13 @@ func main() {
 
 	flag.Parse()
 	compact := !*longMode // compact is default, long mode negates it
+	outputModeSelected := func() bool {
+		return *nodeMode || *nodeProfuseMode ||
+			*eventMode || *eventProfuseMode ||
+			*tokenMode || *tokenProfuseMode ||
+			*jsonMode || *jsonPrettyMode ||
+			*yamlMode || *yamlPreserveMode || *longMode
+	}
 
 	// Validate flag combinations
 
@@ -537,15 +544,9 @@ func main() {
 		}
 
 		// If no stdin and no flags, show help
-		if (stat.Mode()&os.ModeCharDevice) != 0 && !*nodeMode && !*nodeProfuseMode && !*eventMode && !*eventProfuseMode && !*tokenMode && !*tokenProfuseMode && !*jsonMode && !*jsonPrettyMode && !*yamlMode && !*yamlPreserveMode && !*longMode {
+		if (stat.Mode()&os.ModeCharDevice) != 0 && !outputModeSelected() {
 			printHelp()
 			return
-		}
-
-		// Error if stdin has data but no mode flags are provided
-		if (stat.Mode()&os.ModeCharDevice) == 0 && !*nodeMode && !*nodeProfuseMode && !*eventMode && !*eventProfuseMode && !*tokenMode && !*tokenProfuseMode && !*jsonMode && !*jsonPrettyMode && !*yamlMode && !*yamlPreserveMode && !*longMode {
-			fmt.Fprintf(os.Stderr, "Error: stdin has data but no mode specified. Use -n/--node, -N/--NODE, -e/--event, -E/--EVENT, -t/--token, -T/--TOKEN, -j/--json, -J/--JSON, -y/--yaml, -Y/--YAML flag.\n")
-			os.Exit(1)
 		}
 	} else if len(args) == 1 {
 		// File argument provided
@@ -560,6 +561,9 @@ func main() {
 		// Multiple files not supported
 		fmt.Fprintf(os.Stderr, "Error: only one file argument supported\n")
 		os.Exit(1)
+	}
+	if !outputModeSelected() {
+		*jsonMode = true
 	}
 
 	inputData, err := io.ReadAll(input)
@@ -648,7 +652,7 @@ func main() {
 			log.Fatal("Failed to process YAML:", err)
 		}
 	} else {
-		// Use node formatting mode (default)
+		// Use node formatting mode.
 		profuse := *nodeProfuseMode
 		if unmarshalMode {
 			// Use Unmarshal mode
@@ -784,6 +788,7 @@ The 'go-yaml' tool shows how the go.yaml.in/yaml/v4 library handles YAML both
 internally and externally. It is a tool for testing and debugging the library.
 
 It reads YAML input text from stdin or a file and writes results to stdout.
+YAML input is emitted as compact JSON when no output mode is specified.
 
 The go-yaml API has three sets of functions for reading/writing YAML:
   - Load/Dump (default, new API with options support - v4 defaults)
@@ -802,7 +807,7 @@ Output Mode Options:
   -y, --yaml       YAML encoding output
   -Y, --YAML       YAML w/ style and comments preserved
 
-  -j, --json       JSON compact output
+  -j, --json       JSON compact output (default)
   -J, --JSON       JSON pretty output
 
   -t, --token      Token output

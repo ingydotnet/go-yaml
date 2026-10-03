@@ -1,7 +1,8 @@
 # go-yaml
 
-The `go-yaml` binary is a YAML node inspection tool that provides various
-modes for analyzing and transforming YAML data.
+The `go-yaml` binary is a YAML processing and inspection tool that provides
+various modes for analyzing and transforming YAML data.
+Without an output-mode option, it converts YAML input to compact JSON.
 
 Below is a summary of its capabilities:
 
@@ -17,7 +18,7 @@ See the [LICENSE](LICENSE) file for more details.
 - `-Y` / `--YAML`: Outputs YAML while preserving styles and comments.
 
 ### JSON Conversion
-- `-j` / `--json`: Outputs JSON in a compact format.
+- `-j` / `--json`: Outputs JSON in a compact format. This is the default.
 - `-J` / `--JSON`: Outputs JSON in a pretty-printed format.
 
 ### Token Inspection
@@ -81,8 +82,8 @@ pipeline can validate that it received a complete stream.
 - `--version`: Displays the version of the tool.
 
 ## Usage
-The tool reads YAML data from `stdin` and processes it based on the specified
-flags.
+The tool reads YAML data from `stdin` or a file.
+It outputs compact JSON when no output-mode flag is specified.
 It validates flag combinations and provides error messages for incompatible
 options.
 

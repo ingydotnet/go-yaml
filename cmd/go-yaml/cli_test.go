@@ -125,6 +125,35 @@ func TestCLI(t *testing.T) {
 	}
 }
 
+func TestDefaultOutputIsCompactJSON(t *testing.T) {
+	want := "{\"answer\":42}\n"
+	t.Run("stdin", func(t *testing.T) {
+		cmd := exec.Command(testBinary)
+		cmd.Stdin = strings.NewReader("answer: 42\n")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("command failed: %v\n%s", err, output)
+		}
+		if string(output) != want {
+			t.Fatalf("got %q, want %q", output, want)
+		}
+	})
+
+	t.Run("file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "input.yaml")
+		if err := os.WriteFile(path, []byte("answer: 42\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		output, err := exec.Command(testBinary, path).CombinedOutput()
+		if err != nil {
+			t.Fatalf("command failed: %v\n%s", err, output)
+		}
+		if string(output) != want {
+			t.Fatalf("got %q, want %q", output, want)
+		}
+	})
+}
+
 func runTestFile(t *testing.T, testFile string) {
 	t.Helper()
 	// Read and parse the test file
