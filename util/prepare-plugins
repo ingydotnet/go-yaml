@@ -14,6 +14,7 @@ my $root = abs_path('.');
 my $go = $ENV{GO_YAML_BUILD_GO} || 'go';
 my $json_enabled = ($ENV{GO_YAML_BUILD_JSON_COMMENTS} // '') eq 'true';
 my $reference_enabled = ($ENV{GO_YAML_BUILD_REFERENCE_PARSER} // '') eq 'true';
+my $toml_enabled = ($ENV{GO_YAML_BUILD_TOML_PARSER} // '') eq 'true';
 
 sub go_json {
     my ($directory, @args) = @_;
@@ -159,6 +160,40 @@ import reference "go.yaml.in/yaml/v4/plugin/parser/reference"
 func init() {
 	compiledPluginRegistrations = append(
 		compiledPluginRegistrations, reference.Register)
+}
+GO
+    };
+}
+if ($toml_enabled) {
+    my $local = ($ENV{GO_YAML_TOML_PARSER_LOCAL} // '0') eq '1';
+    my $upstream = "$root/../yamlstar-plugin-parser-toml";
+    -f "$upstream/parser/parser.go"
+        or die "Missing TOML parser in $upstream\n" if $local;
+    my $query = canonical_query(
+        $ENV{GO_YAML_TOML_PARSER_VERSION}, 'TOML parser');
+    my $local_version = $local
+        ? local_version("$upstream/plugin.edn",
+            qr/:version\s+"([0-9]+\.[0-9]+\.[0-9]+)"/,
+            'TOML parser')
+        : '';
+    push @plugins, {
+        api => 'parser-toml',
+        module => 'github.com/yamlstar/yamlstar-plugin-parser-toml',
+        wrapper => 'go.yaml.in/yaml/v4/plugin/parser/toml',
+        wrapper_path => "$root/plugin/parser/toml",
+        upstream => $upstream,
+        local => $local,
+        version => resolve_version(
+            'github.com/yamlstar/yamlstar-plugin-parser-toml',
+            $query, $local, $local_version),
+        source => <<'GO',
+package main
+
+import toml "go.yaml.in/yaml/v4/plugin/parser/toml"
+
+func init() {
+	compiledPluginRegistrations = append(
+		compiledPluginRegistrations, toml.Register)
 }
 GO
     };

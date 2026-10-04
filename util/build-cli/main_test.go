@@ -134,6 +134,17 @@ func TestInspectConfig(t *testing.T) {
 	}
 }
 
+func TestInspectTOMLConfig(t *testing.T) {
+	got, err := inspectConfig(
+		[]byte("plugin: {parser: toml@v0.1.0}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.tomlParser || got.tomlVersion != "v0.1.0" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
 func TestConfiguredTabIndentCLI(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -411,5 +422,47 @@ func TestConfiguredReferenceCLI(t *testing.T) {
 	if err := buildCLI(root, config, binary, goTool,
 		os.Getenv("GO_YAML_BUILD_PERL")); err == nil {
 		t.Fatal("unavailable parser version built")
+	}
+}
+
+func TestConfiguredTOMLCLI(t *testing.T) {
+	if os.Getenv("GO_YAML_TEST_TOML_PARSER") == "" {
+		t.Skip("run make test-toml-parser for the optional plugin")
+	}
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	goTool, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	config := filepath.Join(directory, "options.yaml")
+	binary := filepath.Join(directory, "go-yaml")
+	if err := os.WriteFile(config,
+		[]byte("plugin: {parser: toml@v0.1.0}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := buildCLI(root, config, binary, goTool,
+		os.Getenv("GO_YAML_BUILD_PERL")); err != nil {
+		t.Fatal(err)
+	}
+	for _, flags := range [][]string{
+		{"-j"},
+		{"-j", "--plugin=parser=toml@0.1.0"},
+	} {
+		cmd := exec.Command(binary, flags...)
+		cmd.Stdin = strings.NewReader("answer = 42\n")
+		output, err := cmd.CombinedOutput()
+		if err != nil || string(output) != "{\"answer\":42}\n" {
+			t.Fatalf("%v: got %q, %v", flags, output, err)
+		}
+	}
+	modules, err := exec.Command(goTool, "version", "-m", binary).
+		CombinedOutput()
+	if err != nil || !bytes.Contains(modules, []byte(
+		"github.com/yamlstar/yamlstar-plugin-parser-toml\tv0.1.0")) {
+		t.Fatalf("linked plugin version: %v\n%s", err, modules)
 	}
 }

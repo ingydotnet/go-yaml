@@ -170,6 +170,8 @@ JSON-COMMENTS-LOCAL ?= 0
 export GO_YAML_JSON_COMMENTS_LOCAL = $(JSON-COMMENTS-LOCAL)
 REFERENCE-PARSER-LOCAL ?= 0
 export GO_YAML_REFERENCE_PARSER_LOCAL = $(REFERENCE-PARSER-LOCAL)
+TOML-PARSER-LOCAL ?= 0
+export GO_YAML_TOML_PARSER_LOCAL = $(TOML-PARSER-LOCAL)
 
 cli: $(GO)
 ifneq ($(strip $(CONFIG)$(PLUGIN)),)
@@ -232,6 +234,12 @@ prepare-reference-parser: $(PERL) $(GO-DEPS)
 	GO_YAML_REFERENCE_PARSER_VERSION=v0.2.5 \
 	$(PERL) util/prepare-plugins
 
+prepare-toml-parser: $(PERL) $(GO-DEPS)
+	GO_YAML_BUILD_TOML_PARSER=true \
+	GO_YAML_TOML_PARSER_LOCAL=1 \
+	GO_YAML_TOML_PARSER_VERSION=v0.1.0 \
+	$(PERL) util/prepare-plugins
+
 test-json-comments: prepare-json-comments
 	GOWORK=$(PLUGIN-WORK) CGO_ENABLED=0 \
 	  go test ./plugin/json-comments/... ./.cache/cli-plugins/...$(TEST-OPTS)
@@ -258,6 +266,15 @@ test-reference-parser: prepare-reference-parser
 	GO_YAML_REFERENCE_PARSER_LOCAL=1 \
 	go test ./util/build-cli \
 	  -run TestConfiguredReferenceCLI$(TEST-OPTS)
+
+test-toml-parser: prepare-toml-parser
+	GOWORK=$(PLUGIN-WORK) CGO_ENABLED=0 \
+	  go test ./plugin/parser/toml/... \
+	  ./.cache/cli-plugins/...$(TEST-OPTS)
+	GO_YAML_TEST_TOML_PARSER=1 \
+	GO_YAML_TOML_PARSER_LOCAL=1 \
+	go test ./util/build-cli \
+	  -run TestConfiguredTOMLCLI$(TEST-OPTS)
 
 test-cli-build: $(GO-DEPS)
 	go test ./util/build-cli$(TEST-OPTS)

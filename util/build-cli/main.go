@@ -41,9 +41,9 @@ func main() {
 }
 
 type buildConfig struct {
-	jsonComments, referenceParser bool
-	jsonVersion, referenceVersion string
-	embedded                      []byte
+	jsonComments, referenceParser, tomlParser  bool
+	jsonVersion, referenceVersion, tomlVersion string
+	embedded                                   []byte
 }
 
 var pluginVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
@@ -153,6 +153,15 @@ func inspectConfig(data []byte) (buildConfig, error) {
 					selection.referenceParser = true
 					if raw, found := setting["version"]; found {
 						selection.referenceVersion, err = canonicalVersion(raw, api)
+						if err != nil {
+							return selection, err
+						}
+					}
+					delete(plugins, api)
+				case "toml":
+					selection.tomlParser = true
+					if raw, found := setting["version"]; found {
+						selection.tomlVersion, err = canonicalVersion(raw, api)
 						if err != nil {
 							return selection, err
 						}
@@ -290,7 +299,8 @@ func buildCLIWithPlugins(
 		perlTool = "perl"
 	}
 	stage := filepath.Join(root, ".cache", "cli-config")
-	if selection.jsonComments || selection.referenceParser {
+	if selection.jsonComments || selection.referenceParser ||
+		selection.tomlParser {
 		cmd := exec.Command(perlTool, "util/prepare-plugins")
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(),
@@ -299,8 +309,11 @@ func buildCLIWithPlugins(
 				strconv.FormatBool(selection.jsonComments),
 			"GO_YAML_BUILD_REFERENCE_PARSER="+
 				strconv.FormatBool(selection.referenceParser),
+			"GO_YAML_BUILD_TOML_PARSER="+
+				strconv.FormatBool(selection.tomlParser),
 			"GO_YAML_JSON_COMMENTS_VERSION="+selection.jsonVersion,
-			"GO_YAML_REFERENCE_PARSER_VERSION="+selection.referenceVersion)
+			"GO_YAML_REFERENCE_PARSER_VERSION="+selection.referenceVersion,
+			"GO_YAML_TOML_PARSER_VERSION="+selection.tomlVersion)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("prepare plugins: %w\n%s", err, out)
 		}

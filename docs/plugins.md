@@ -11,6 +11,7 @@ The current implementations are:
 |---|---|---|---|
 | `parser` | `go-yaml` | core | yes |
 | `parser` | `reference` | `plugin/parser/reference` | no |
+| `parser` | `toml` | `plugin/parser/toml` | no |
 | `json-comments` | `sanitizer` | `plugin/json-comments` | yes |
 | `limit` | `limit` | `plugin/limit` | yes |
 | `alias-data` | `alias-data` | `plugin/aliasdata` | yes |
@@ -222,6 +223,21 @@ var value any
 err := yaml.Load(input, &value, yaml.WithPlugin(reference.New()))
 ```
 
+### TOML parser
+
+`go.yaml.in/yaml/v4/plugin/parser/toml` adapts the generated Go parser from
+`github.com/yamlstar/yamlstar-plugin-parser-toml`.
+Its canonical source is YAMLScript, and it emits the same parser events used
+by YAMLStar.
+TOML comments are preserved as event and node comment metadata.
+
+```go
+import toml "go.yaml.in/yaml/v4/plugin/parser/toml"
+
+var value any
+err := yaml.Load(input, &value, yaml.WithPlugin(toml.New()))
+```
+
 ### JSON comments
 
 `go.yaml.in/yaml/v4/plugin/json-comments` adapts the sanitizer from
@@ -255,6 +271,7 @@ It never names a file and never contains YAML.
 
 ```bash
 make cli PLUGIN=parser=reference@v0.2.5,json-comments
+make cli PLUGIN=parser=toml@v0.1.0
 ```
 
 Selectors have these forms:
@@ -279,6 +296,7 @@ matching override:
 ```bash
 make cli PLUGIN=parser=reference@v0.2.5,json-comments \
   REFERENCE-PARSER-LOCAL=1 JSON-COMMENTS-LOCAL=1
+make cli PLUGIN=parser=toml@v0.1.0 TOML-PARSER-LOCAL=1
 ```
 
 The compiled command uses the same selector DSL at runtime:
@@ -305,6 +323,7 @@ Run the optional module checks with:
 make test-json-comments
 make test-json-comments-race
 make test-reference-parser
+make test-toml-parser
 ```
 
 [upstream syntax document]: https://github.com/yamlstar/yamlstar-plugin-json-comments/blob/main/Syntax.md

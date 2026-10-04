@@ -114,6 +114,9 @@ Optional plugin implementations must be selected while building the command.
 make cli PLUGIN=parser=reference@v0.2.5,json-comments
 ./go-yaml --plugin=parser=reference@0.2.5,json-comments \
   -j example/json-comments/data.yaml
+
+make cli PLUGIN=parser=toml@v0.1.0 TOML-PARSER-LOCAL=1
+./go-yaml --plugin=parser=toml settings.toml
 ```
 
 The selector forms are `API`, `API@VERSION`, `API=IMPLEMENTATION`, and
@@ -176,7 +179,8 @@ Token and legacy modes reject them because those paths do not consume parser
 plugin events.
 
 For local development, related checkouts must be under `repos/`.
-Set `JSON-COMMENTS-LOCAL=1` or `REFERENCE-PARSER-LOCAL=1` to use them.
+Set `JSON-COMMENTS-LOCAL=1`, `REFERENCE-PARSER-LOCAL=1`, or
+`TOML-PARSER-LOCAL=1` to use them.
 Build staging, workspaces, and downloaded build metadata live under `.cache/`.
 Go stores downloaded released modules in its module cache.
 
