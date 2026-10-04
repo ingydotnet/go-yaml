@@ -121,7 +121,10 @@ type PluginEvent struct {
 	Type               string
 	Value, Anchor, Tag string
 	Style              string
-	Flow, Explicit     bool
+	Flow               bool
+	// Explicit reports that source syntax explicitly specified the document
+	// marker or node tag. Semantic tags supplied by a parser stay implicit.
+	Explicit           bool
 	StartMark, EndMark Mark
 	Version            *StreamVersionDirective
 	TagDirectives      []StreamTagDirective
@@ -350,8 +353,25 @@ func pluginEvent(p PluginEvent) Event {
 		e.Type = ALIAS_EVENT
 	case "scalar":
 		e.Type = SCALAR_EVENT
-		e.Implicit = (p.Tag == "" && p.Style == "") || p.Tag == "!"
-		e.quoted_implicit = p.Tag == "" && p.Style != ""
+		switch {
+		case p.Tag == "!":
+			e.Implicit = true
+			e.quoted_implicit = false
+		case p.Explicit:
+			e.Implicit = false
+			e.quoted_implicit = false
+		case p.Tag != "":
+			// Parser plugins may supply resolved semantic tags without those
+			// tags having appeared explicitly in the source.
+			e.Implicit = p.Style == ""
+			e.quoted_implicit = p.Style != ""
+		case p.Style == "":
+			e.Implicit = true
+			e.quoted_implicit = false
+		default:
+			e.Implicit = false
+			e.quoted_implicit = true
+		}
 		switch p.Style {
 		case "":
 			e.Style = Style(PLAIN_SCALAR_STYLE)

@@ -148,19 +148,23 @@ func TestParserPluginMetadata(t *testing.T) {
 func TestPluginEventScalarImplicitness(t *testing.T) {
 	for _, tc := range []struct {
 		name, tag, style string
+		explicit         bool
 		implicit, quoted bool
 	}{
-		{"plain untagged", "", "", true, false},
-		{"quoted untagged", "", "double", false, true},
-		{"plain non-specific", "!", "", true, false},
-		{"quoted non-specific", "!", "double", true, false},
-		{"plain explicit", "tag:yaml.org,2002:str", "", false, false},
-		{"quoted explicit", "tag:yaml.org,2002:str", "double", false, false},
+		{"plain untagged", "", "", false, true, false},
+		{"quoted untagged", "", "double", false, false, true},
+		{"plain non-specific", "!", "", true, true, false},
+		{"quoted non-specific", "!", "double", true, true, false},
+		{"plain semantic", "tag:yaml.org,2002:str", "", false, true, false},
+		{"quoted semantic", "tag:yaml.org,2002:str", "double", false, false, true},
+		{"plain explicit", "tag:yaml.org,2002:str", "", true, false, false},
+		{"quoted explicit", "tag:yaml.org,2002:str", "double", true, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			events := sourceScalarStream("value")
 			events[2].Tag = tc.tag
 			events[2].Style = tc.style
+			events[2].Explicit = tc.explicit
 			reader := libyaml.NewEventReader(strings.NewReader("input"),
 				&libyaml.Options{Parser: sourceFunc(
 					func([]byte) ([]yaml.PluginEvent, error) {

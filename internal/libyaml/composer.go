@@ -154,7 +154,8 @@ func (c *Composer) Compose() *Node {
 // position and comment information from the current event.
 func (c *Composer) node(kind Kind, tag, value string) *Node {
 	var style Style
-	if tag != "" && tag != "!" {
+	if tag != "" && tag != "!" &&
+		!c.event.Implicit && !c.event.quoted_implicit {
 		// Normalize tag to short form (e.g., tag:yaml.org,2002:str -> !!str)
 		tag = shortTag(tag)
 		style = TaggedStyle

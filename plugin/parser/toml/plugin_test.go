@@ -2,6 +2,7 @@ package toml_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"go.yaml.in/yaml/v4"
@@ -37,5 +38,26 @@ func TestComments(t *testing.T) {
 	}
 	if root.Content[1].LineComment != "# value" {
 		t.Fatalf("line comment is %q", root.Content[1].LineComment)
+	}
+}
+
+func TestSemanticTagsRemainImplicit(t *testing.T) {
+	var node yaml.Node
+	err := yaml.Load([]byte("title = \"TOML\"\nanswer = 42\n"), &node,
+		yaml.WithPlugin(toml.New()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, child := range node.Content[0].Content {
+		if child.Style&yaml.TaggedStyle != 0 {
+			t.Fatalf("semantic tag %q was marked explicit", child.Tag)
+		}
+	}
+	output, err := yaml.Dump(&node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(output), "!!") {
+		t.Fatalf("implicit semantic tags were emitted:\n%s", output)
 	}
 }
